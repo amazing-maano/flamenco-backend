@@ -375,7 +375,7 @@ module.exports = {
         });
       }
 
-      if (user && !user.isVerified) {
+      if (!user.isVerified) {
         const { verificationToken } = user;
         // send mail
         if (req.headers.language === 'en') {
@@ -818,7 +818,7 @@ module.exports = {
           msg: USER_NOT_FOUND,
         });
       }
-      if (user && user.socialUID) {
+      if (user.socialUID) {
         return res.status(403).json({
           success: false,
           msg: 'Social logged in user can\'t reset password',

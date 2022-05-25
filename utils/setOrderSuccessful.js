@@ -9,19 +9,28 @@ const Contacts = require('../models/contactsModel');
 const BookedSessions = require('../models/bookedSessionsModel');
 const Orders = require('../models/ordersModel');
 const Invites = require('../models/invitesModel');
-const SearchStats = require('../models/searchStatsModel');
 
 const { sendMail } = require('./mail');
 
 const { sender_email } = require('../config/environment');
 
-const { ERROR_TYPES } = require('../config/errorTypes');
+const {
+  ERROR_TYPES,
+} = require('../config/errorTypes');
 
-const { SUCCESS_MSG_TYPES } = require('../config/successMsgTypes');
+const {
+  SUCCESS_MSG_TYPES,
+} = require('../config/successMsgTypes');
 
-const { DATA_MISSING, ORDER_NOT_FOUND, PRODUCT_NOT_FOUND } = ERROR_TYPES;
+const {
+  DATA_MISSING,
+  ORDER_NOT_FOUND,
+  PRODUCT_NOT_FOUND,
+} = ERROR_TYPES;
 
-const { SUBSCRIPTION_RENEWED } = SUCCESS_MSG_TYPES;
+const {
+  SUBSCRIPTION_RENEWED,
+} = SUCCESS_MSG_TYPES;
 
 const { EMAIL_TEMPLATE_IDS } = require('../config/dynamiceEmailTemplateIds');
 
@@ -47,9 +56,7 @@ const getOrderParticipentsData = async ({
   subscriptionID,
   isUpdateSubscriptionOrder = false,
 }) => {
-  const orderFilters = isUpdateSubscriptionOrder
-    ? { subscriptionID }
-    : { _id: orderId };
+  const orderFilters = isUpdateSubscriptionOrder ? { subscriptionID } : { _id: orderId };
   const order = await Orders.findOne(orderFilters);
   if (!order) {
     return {
@@ -98,8 +105,12 @@ const getOrderParticipentsData = async ({
 };
 
 module.exports = {
+
   updateSubscriptionOrder: async (subscriptionID) => {
-    const { error, data } = await getOrderParticipentsData({
+    const {
+      error,
+      data,
+    } = await getOrderParticipentsData({
       subscriptionID,
       isUpdateSubscriptionOrder: true,
     });
@@ -120,39 +131,29 @@ module.exports = {
     } = data || {};
 
     try {
-      await Profile.findOneAndUpdate(
-        {
-          user: order.buyerId,
-        },
-        {
-          $set: { numtotalSpent: newTotalSpentByBuyer },
-        },
-        { upsert: true, returnOriginal: false },
-      );
+      await Profile.findOneAndUpdate({
+        user: order.buyerId,
+      }, {
+        $set: { numtotalSpent: newTotalSpentByBuyer },
+      }, { upsert: true, returnOriginal: false });
 
-      await Profile.findOneAndUpdate(
-        {
-          user: order.eventHostId,
+      await Profile.findOneAndUpdate({
+        user: order.eventHostId,
+      }, {
+        $set: {
+          numtotalEarnings: newTotalEarningsByEventHost,
         },
-        {
-          $set: {
-            numtotalEarnings: newTotalEarningsByEventHost,
-          },
-        },
-        { upsert: true, returnOriginal: false },
-      );
 
-      await Product.findOneAndUpdate(
-        {
-          _id: order.productId,
+      }, { upsert: true, returnOriginal: false });
+
+      await Product.findOneAndUpdate({
+        _id: order.productId,
+      }, {
+        $set: {
+          productTotalEarnings: newTotalProductEarnings,
         },
-        {
-          $set: {
-            productTotalEarnings: newTotalProductEarnings,
-          },
-        },
-        { upsert: true, returnOriginal: false },
-      );
+      },
+      { upsert: true, returnOriginal: false });
     } catch (err) {
       return {
         statusCode: 500,
@@ -172,13 +173,11 @@ module.exports = {
     };
   },
 
-  setOrderSuccessful: async (
-    orderId,
-    origin,
-    subscriptionID,
-    isSearchedEvent,
-  ) => {
-    const { error, data } = await getOrderParticipentsData({
+  setOrderSuccessful: async (orderId, origin, subscriptionID) => {
+    const {
+      error,
+      data,
+    } = await getOrderParticipentsData({
       orderId,
       subscriptionID,
       isUpdateSubscriptionOrder: false,
@@ -200,7 +199,7 @@ module.exports = {
       newTotalSpentByBuyer,
       newTotalEarningsByEventHost,
       newTotalProductEarnings,
-    } = data || {};
+    } = data;
 
     const bookedSessions = order.bookedSessions.map((bookedSession) => ({
       ...bookedSession,
@@ -215,16 +214,6 @@ module.exports = {
     const buyer = await User.findOne({ _id: order.buyerId });
     const host = await User.findOne({ _id: order.eventHostId });
 
-    if (isSearchedEvent === true) {
-      await SearchStats.updateMany(
-        {},
-        {
-          $inc: { totalPurchases: 1 },
-        },
-        { upsert: true, returnOriginal: false },
-      );
-    }
-
     const checkIfUserWasInvited = await Invites.findOne({
       productId: order.productId,
       userId: order.buyerId,
@@ -232,82 +221,63 @@ module.exports = {
     });
 
     if (checkIfUserWasInvited) {
-      await Invites.findOneAndUpdate(
-        {
-          _id: checkIfUserWasInvited._id,
-        },
-        {
-          $set: { hasAcceptedEventInvite: true },
-        },
-        { upsert: true, returnOriginal: false },
-      );
+      await Invites.findOneAndUpdate({
+        _id: checkIfUserWasInvited._id,
+      }, {
+        $set: { hasAcceptedEventInvite: true },
+
+      }, { upsert: true, returnOriginal: false });
     }
 
-    await ProductVariants.updateMany(
-      {
-        _id: { $in: order.bookedSessionId },
-        seatsAvailable: { $gt: 0 },
-      },
-      { $inc: { seatsAvailable: -1 } },
-      {
-        multi: true,
-      },
-    );
+    await ProductVariants.updateMany({
+      _id: { $in: order.bookedSessionId },
+      seatsAvailable: { $gt: 0 },
+    }, { $inc: { seatsAvailable: -1 } }, {
+      multi: true,
+    });
 
-    await Profile.findOneAndUpdate(
-      {
-        user: order.buyerId,
+    await Profile.findOneAndUpdate({
+      user: order.buyerId,
+    }, {
+      $set: { numtotalSpent: newTotalSpentByBuyer },
+      $inc: { totalOrdersByStudent: 1 },
+      $addToSet: {
+        bookedEventsByStudent: order.productId,
+        bookedSessionsByStudent: bookedSessionsArray,
       },
-      {
-        $set: { numtotalSpent: newTotalSpentByBuyer },
-        $inc: { totalOrdersByStudent: 1 },
-        $addToSet: {
-          bookedEventsByStudent: order.productId,
-          bookedSessionsByStudent: bookedSessionsArray,
-        },
-        $push: {
-          studentPurchasedProductAt: Date.now(),
-        },
+      $push: {
+        studentPurchasedProductAt: Date.now(),
       },
-      { upsert: true, returnOriginal: false },
-    );
 
-    await Profile.findOneAndUpdate(
-      {
-        user: order.eventHostId,
-      },
-      {
-        $inc: {
-          totalProductPurchased: 1,
-          totalSessionsPurchased: bookedSessionsArray.length,
-        },
-        $push: { productPurchasedAt: Date.now() },
-        $addToSet: { totalStudents: order.buyerId },
-        $set: {
-          numtotalEarnings: newTotalEarningsByEventHost,
-        },
-      },
-      { upsert: true, returnOriginal: false },
-    );
+    }, { upsert: true, returnOriginal: false });
 
-    await Product.findOneAndUpdate(
-      {
-        _id: order.productId,
+    await Profile.findOneAndUpdate({
+      user: order.eventHostId,
+    }, {
+      $inc: { totalProductPurchased: 1, totalSessionsPurchased: bookedSessionsArray.length },
+      $push: { productPurchasedAt: Date.now() },
+      $addToSet: { totalStudents: order.buyerId },
+      $set: {
+        numtotalEarnings: newTotalEarningsByEventHost,
       },
-      {
-        $set: {
-          productTotalEarnings: newTotalProductEarnings,
-        },
-        $addToSet: {
-          numberOfStudents: order.buyerId,
-          bookedEventSessions: bookedSessionsArray,
-        },
-        $push: {
-          totalEarnings: order.amountPaid,
-        },
+
+    }, { upsert: true, returnOriginal: false });
+
+    await Product.findOneAndUpdate({
+      _id: order.productId,
+    }, {
+      $set: {
+        productTotalEarnings: newTotalProductEarnings,
       },
-      { upsert: true, returnOriginal: false },
-    );
+      $addToSet: {
+        numberOfStudents: order.buyerId,
+        bookedEventSessions: bookedSessionsArray,
+      },
+      $push: {
+        totalEarnings: order.amountPaid,
+      },
+    },
+    { upsert: true, returnOriginal: false });
 
     const updateOrder = await Orders.findOneAndUpdate(
       { _id: orderId },
@@ -320,29 +290,21 @@ module.exports = {
       { returnNewDocument: true, new: true },
     );
     console.log(updateOrder.subscriptionID);
-    await Contacts.findOneAndUpdate(
-      {
-        user: order.buyerId,
+    await Contacts.findOneAndUpdate({
+      user: order.buyerId,
+    }, {
+      $addToSet: {
+        contacts: order.eventHostId,
       },
-      {
-        $addToSet: {
-          contacts: order.eventHostId,
-        },
-      },
-      { upsert: true, returnOriginal: false },
-    );
+    }, { upsert: true, returnOriginal: false });
 
-    await Contacts.findOneAndUpdate(
-      {
-        user: order.eventHostId,
+    await Contacts.findOneAndUpdate({
+      user: order.eventHostId,
+    }, {
+      $addToSet: {
+        contacts: order.buyerId,
       },
-      {
-        $addToSet: {
-          contacts: order.buyerId,
-        },
-      },
-      { upsert: true, returnOriginal: false },
-    );
+    }, { upsert: true, returnOriginal: false });
 
     const sessions = await ProductVariants.find({
       productId: product._id,
@@ -455,4 +417,5 @@ module.exports = {
       },
     };
   },
+
 };

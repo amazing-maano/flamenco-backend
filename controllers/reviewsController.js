@@ -62,89 +62,86 @@ module.exports = {
         return res.status(422).send('ratings allowed range 1 to 5');
       }
 
-      if (product) {
-        const newReview = new Reviews({
-          productId: product._id,
-          stars,
-          comment,
-          profile: mongoose.Types.ObjectId(isPurchasedProduct._id),
-        });
+      const newReview = new Reviews({
+        productId: product._id,
+        stars,
+        comment,
+        profile: mongoose.Types.ObjectId(isPurchasedProduct._id),
+      });
 
-        const productData = await newReview.save().then((prod) => prod.populate({
-          path: 'profile',
-          model: 'Profile',
-          select: '_id user firstName lastName location role profileImage -eventsByHost',
-        }));
+      const productData = await newReview.save().then((prod) => prod.populate({
+        path: 'profile',
+        model: 'Profile',
+        select: '_id user firstName lastName location role profileImage -eventsByHost',
+      }));
 
-        const allReviews = await Reviews.find({ productId: product._id });
+      const allReviews = await Reviews.find({ productId: product._id });
 
-        // product.reviews.push(review);
-        product.totalReviews = allReviews.length;
-        product.rating = allReviews.reduce((acc, item) => item.stars + acc, 0)
-          / allReviews.length;
+      // product.reviews.push(review);
+      product.totalReviews = allReviews.length;
+      product.rating = allReviews.reduce((acc, item) => item.stars + acc, 0)
+        / allReviews.length;
 
-        await product.save();
+      await product.save();
 
-        const data = await Reviews.aggregate([
-          { $match: { productId: mongoose.Types.ObjectId(product._id) } },
-          { $project: { stars: 1, createdAt: 1 } },
-          { $group: { _id: '$stars', count: { $sum: 1 } } },
-        ]);
+      const data = await Reviews.aggregate([
+        { $match: { productId: mongoose.Types.ObjectId(product._id) } },
+        { $project: { stars: 1, createdAt: 1 } },
+        { $group: { _id: '$stars', count: { $sum: 1 } } },
+      ]);
 
-        await Profile.findOneAndUpdate({ user: product.user }, {
-          $inc: { totalReviews: 1 },
-        }, { upsert: true });
+      await Profile.findOneAndUpdate({ user: product.user }, {
+        $inc: { totalReviews: 1 },
+      }, { upsert: true });
 
-        // send email to fan for posting a review
-        if (req.headers.language === 'en') {
-          templateId = EMAIL_TEMPLATE_IDS.ENGLISH_REVIEWS_POST;
-        } else {
-          templateId = EMAIL_TEMPLATE_IDS.SPANISH_REVIEWS_POST;
-        }
-        const msg1 = {
-          to: reviewerProfile.email,
-          from: sender_email,
-          templateId,
-          dynamic_template_data: {
-            firstName: `${isPurchasedProduct.firstName}`,
-            hostName: `${hostProfile.profile.firstName}`,
-            url: `${origin}profile/${hostProfile.profile._id}`,
-          },
-        };
-
-        sendMail(msg1);
-        // send email to host for getting a review on his product
-        if (req.headers.language === 'en') {
-          templateId = EMAIL_TEMPLATE_IDS.ENGLISH_PRODUCT_REVIEWED;
-        } else {
-          templateId = EMAIL_TEMPLATE_IDS.SPANISH_PRODUCT_REVIEWED;
-        }
-        const msg2 = {
-          to: hostProfile.email,
-          from: sender_email,
-          templateId,
-          dynamic_template_data: {
-            firstName: `${hostProfile.profile.firstName}`,
-            studentName: `${isPurchasedProduct.firstName}`,
-            hostUrl: `${origin}profile/${hostProfile.profile._id}`,
-            productUrl: `${origin}event/${product._id}`,
-            productType: `${product.productType}`,
-          },
-        };
-
-        sendMail(msg2);
-
-        return res.status(200).send({
-          reviews: {
-            rating: product.rating,
-            totalReviews: product.totalReviews,
-            _id: product._id,
-            reviews: productData,
-          },
-          starsCount: data,
-        });
+      // send email to fan for posting a review
+      if (req.headers.language === 'en') {
+        templateId = EMAIL_TEMPLATE_IDS.ENGLISH_REVIEWS_POST;
+      } else {
+        templateId = EMAIL_TEMPLATE_IDS.SPANISH_REVIEWS_POST;
       }
-      return res.status(404).send(ERROR_TYPES.PRODUCT_NOT_FOUND);
+      const msg1 = {
+        to: reviewerProfile.email,
+        from: sender_email,
+        templateId,
+        dynamic_template_data: {
+          firstName: `${isPurchasedProduct.firstName}`,
+          hostName: `${hostProfile.profile.firstName}`,
+          url: `${origin}profile/${hostProfile.profile._id}`,
+        },
+      };
+
+      sendMail(msg1);
+      // send email to host for getting a review on his product
+      if (req.headers.language === 'en') {
+        templateId = EMAIL_TEMPLATE_IDS.ENGLISH_PRODUCT_REVIEWED;
+      } else {
+        templateId = EMAIL_TEMPLATE_IDS.SPANISH_PRODUCT_REVIEWED;
+      }
+      const msg2 = {
+        to: hostProfile.email,
+        from: sender_email,
+        templateId,
+        dynamic_template_data: {
+          firstName: `${hostProfile.profile.firstName}`,
+          studentName: `${isPurchasedProduct.firstName}`,
+          hostUrl: `${origin}profile/${hostProfile.profile._id}`,
+          productUrl: `${origin}event/${product._id}`,
+          productType: `${product.productType}`,
+        },
+      };
+
+      sendMail(msg2);
+
+      return res.status(200).send({
+        reviews: {
+          rating: product.rating,
+          totalReviews: product.totalReviews,
+          _id: product._id,
+          reviews: productData,
+        },
+        starsCount: data,
+      });
     } catch (err) {
       // console.log(err);
       return res.status(500).send(err.message);

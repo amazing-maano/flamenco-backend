@@ -121,7 +121,7 @@ module.exports = {
           const subscriptionID = invoicePaidIntent.subscription;
           const order = await Orders.findOne({ subscriptionID });
           let responseObj = {};
-          if (!!order && order?.isPaid) {
+          if (!!order && order.isPaid) {
             responseObj = await updateSubscriptionOrder(subscriptionID);
           } else {
             responseObj = await setOrderSuccessful(orderId, origin, subscriptionID);

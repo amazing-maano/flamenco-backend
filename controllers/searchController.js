@@ -131,8 +131,7 @@ module.exports = {
 
       if (
         req.query.keyword
-        && (Object.keys(req.query.keyword) !== undefined
-          || Object.keys(req.query.keyword).length !== 0)
+        && Object.keys(req.query.keyword).length !== 0
       ) {
         const splitKeyword = req.query.keyword
           .trim()
