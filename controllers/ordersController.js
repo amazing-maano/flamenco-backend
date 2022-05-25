@@ -74,7 +74,7 @@ module.exports = {
         });
       }
 
-      if (product && product.isPublished === false) {
+      if (product.isPublished === false) {
         return res.status(404).send({
           success: false,
           msg: PRODUCT_NOT_PUBLISHED,
@@ -248,7 +248,6 @@ module.exports = {
             orderId: newOrder._id.toString(),
             origin,
             user: req.userId,
-            isSearchedEvent: data.searchedEvent,
           },
           application_fee_percent: feePercent,
         };

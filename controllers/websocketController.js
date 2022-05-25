@@ -223,13 +223,11 @@ exports.websocketHandler = (ws, userId) => {
           })
           .exec((err, newContact) => {
             if (err) {
-              if (err) {
-                return ContactNotifier.contactNotifier(
-                  messageObj.contactId,
-                  'error',
-                  err.message,
-                );
-              }
+              return ContactNotifier.contactNotifier(
+                messageObj.contactId,
+                'error',
+                err.message,
+              );
             }
             const filteredContact2 = newContact.contacts.filter(
               (user) => user._id.toString() === userId,

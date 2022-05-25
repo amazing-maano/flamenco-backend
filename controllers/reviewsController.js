@@ -15,7 +15,7 @@ const {
 } = require('../config/environment');
 
 const {
-  SELF_REVIEW_PROHIBITED, CANNOT_GIVE_MORE_THAN_ONE_REVIEW,
+  SELF_REVIEW_PROHIBITED, CANNOT_GIVE_MORE_THAN_ONE_REVIEW, PRODUCT_NOT_FOUND,
 } = ERROR_TYPES;
 
 const { EMAIL_TEMPLATE_IDS } = require('../config/dynamiceEmailTemplateIds');
@@ -32,6 +32,13 @@ module.exports = {
 
       const isPurchasedProduct = await Profile.findOne({ user: req.userId });
       const product = await Product.findById(req.params.productId);
+
+      if (!product) {
+        return res.status(404).send({
+          success: false,
+          msg: PRODUCT_NOT_FOUND,
+        });
+      }
 
       const reviewerProfile = await User.findOne({ _id: req.userId }).populate('profile', '_id firstName role');
       const hostProfile = await User.findOne({ _id: product.user }).populate('profile', '_id firstName role');

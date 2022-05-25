@@ -375,7 +375,7 @@ module.exports = {
         });
       }
 
-      if (user && user !== undefined && !user.isVerified) {
+      if (user && !user.isVerified) {
         const { verificationToken } = user;
         // send mail
         if (req.headers.language === 'en') {
@@ -534,7 +534,7 @@ module.exports = {
         });
       }
 
-      if (user !== undefined && user.isVerified) {
+      if (user.isVerified) {
         return res.status(409).json({
           success: false,
           msg: EMAIL_ALREADY_USED,
@@ -741,19 +741,19 @@ module.exports = {
         email,
       }).populate('profile', '_id firstName');
 
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          msg: USER_NOT_FOUND,
+        });
+      }
+
       let userName;
 
       if (user.profile) {
         userName = user.profile.firstName;
       } else {
         userName = 'User';
-      }
-
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          msg: USER_NOT_FOUND,
-        });
       }
 
       user.comparePassword(password, async (err, isMatch) => {
@@ -811,63 +811,57 @@ module.exports = {
         });
       }
 
-      await User.findOne({ email }, async (err, user) => {
-        if (err) {
-          return res.status(404).send(err);
-        }
-        if (!user || user === null) {
-          return res.status(404).json({
-            success: false,
-            msg: USER_NOT_FOUND,
-          });
-        }
-        if (user !== null && user.socialUID) {
-          return res.status(403).json({
-            success: false,
-            msg: 'Social logged in user can\'t reset password',
-          });
-        }
-
-        const token = crypto.randomBytes(32).toString('hex');
-        // console.log(token);
-
-        // send mail
-        if (req.headers.language === 'en') {
-          templateId = EMAIL_TEMPLATE_IDS.ENGLISH_NEW_PASSWORD_REQUESTED;
-        } else {
-          templateId = EMAIL_TEMPLATE_IDS.SPANISH_NEW_PASSWORD_REQUESTED;
-        }
-
-        const msg = {
-          to: email,
-          from: sender_email,
-          templateId,
-          dynamic_template_data: {
-            url: `${origin}login/${token}`,
-          },
-        };
-
-        sendMail(msg);
-
-        user.resetPasswordToken = token;
-        user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
-
-        await user.save((err) => {
-          if (err) {
-            return res.status(500).json({
-              success: false,
-              msg: TRY_AGAIN,
-            });
-          }
-          // return res.json({ success: true, msg: EMAIL_VERIFIED });
-          return res.status(200).json({
-            success: true,
-            msg: EMAIL_SENT,
-            user,
-          });
+      const user = await User.findOne({ email });
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          msg: USER_NOT_FOUND,
         });
+      }
+      if (user && user.socialUID) {
+        return res.status(403).json({
+          success: false,
+          msg: 'Social logged in user can\'t reset password',
+        });
+      }
 
-        return user;
+      const token = crypto.randomBytes(32).toString('hex');
+      // console.log(token);
+
+      // send mail
+      if (req.headers.language === 'en') {
+        templateId = EMAIL_TEMPLATE_IDS.ENGLISH_NEW_PASSWORD_REQUESTED;
+      } else {
+        templateId = EMAIL_TEMPLATE_IDS.SPANISH_NEW_PASSWORD_REQUESTED;
+      }
+
+      const msg = {
+        to: email,
+        from: sender_email,
+        templateId,
+        dynamic_template_data: {
+          url: `${origin}login/${token}`,
+        },
+      };
+
+      sendMail(msg);
+
+      user.resetPasswordToken = token;
+      user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+
+      await user.save((err) => {
+        if (err) {
+          return res.status(500).json({
+            success: false,
+            msg: TRY_AGAIN,
+          });
+        }
+        // return res.json({ success: true, msg: EMAIL_VERIFIED });
+        return res.status(200).json({
+          success: true,
+          msg: EMAIL_SENT,
+          user,
+        });
       });
     } catch (error) {
       return res.status(403).send(error.message);
@@ -876,26 +870,25 @@ module.exports = {
 
   passwordResetVerification: async (req, res) => {
     try {
-      await User.findOne(
+      const user = await User.findOne(
         {
           resetPasswordToken: req.params.token,
           resetPasswordExpires: {
             $gt: Date.now(),
           },
         },
-        (err, user) => {
-          if (!user) {
-            return res.status(404).json({
-              success: false,
-              msg: 'Password reset token is invalid or has expired.',
-            });
-          }
-          return res.status(200).json({
-            msg: 'Token verified',
-            user,
-          });
-        },
       );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          msg: 'Password reset token is invalid or has expired.',
+        });
+      }
+      return res.status(200).json({
+        msg: 'Token verified',
+        user,
+      });
     } catch (error) {
       return res.status(500).send(error.message);
     }
@@ -921,59 +914,58 @@ module.exports = {
         });
       }
 
-      await User.findOne(
+      const user = await User.findOne(
         {
           resetPasswordToken: req.params.token,
           resetPasswordExpires: {
             $gt: Date.now(),
           },
         },
-        async (err, user) => {
-          if (!user) {
-            return res.status(404).json({
-              success: false,
-              msg: 'Password reset token is invalid or has expired.',
-            });
-          }
-
-          const profile = await Profile.findOne({ user: user._id });
-          let userName;
-
-          if (profile) {
-            userName = profile.firstName;
-          } else {
-            userName = 'User';
-          }
-
-          user.password = confirmPassword;
-          user.resetPasswordToken = undefined;
-          user.resetPasswordExpires = undefined;
-
-          user.save((err) => {
-            if (err) return res.send(err.message);
-            if (req.headers.language === 'en') {
-              templateId = EMAIL_TEMPLATE_IDS.ENGLISH_PASSWORD_CHANGED;
-            } else {
-              templateId = EMAIL_TEMPLATE_IDS.SPANISH_PASSWORD_CHANGED;
-            }
-
-            const msg = {
-              to: user.email,
-              from: sender_email,
-              templateId,
-              dynamic_template_data: {
-                firstName: `${userName}`,
-                url: `${origin}`,
-              },
-            };
-
-            sendMail(msg);
-            return res.status(200).json({
-              user,
-            });
-          });
-        },
       );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          msg: 'Password reset token is invalid or has expired.',
+        });
+      }
+
+      const profile = await Profile.findOne({ user: user._id });
+      let userName;
+
+      if (profile) {
+        userName = profile.firstName;
+      } else {
+        userName = 'User';
+      }
+
+      user.password = confirmPassword;
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpires = undefined;
+
+      await user.save((err) => {
+        if (err) return res.send(err.message);
+        if (req.headers.language === 'en') {
+          templateId = EMAIL_TEMPLATE_IDS.ENGLISH_PASSWORD_CHANGED;
+        } else {
+          templateId = EMAIL_TEMPLATE_IDS.SPANISH_PASSWORD_CHANGED;
+        }
+
+        const msg = {
+          to: user.email,
+          from: sender_email,
+          templateId,
+          dynamic_template_data: {
+            firstName: `${userName}`,
+            url: `${origin}`,
+          },
+        };
+
+        sendMail(msg);
+        return res.status(200).json({
+          user,
+        });
+      });
     } catch (error) {
       return res.status(500).send(error.message);
     }

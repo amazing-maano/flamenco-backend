@@ -42,8 +42,8 @@ classTaxonomiesSchema.statics = {
     // eslint-disable-next-line consistent-return
     this.searchFull(q, (err, data) => {
       if (err) return callback(err, data);
-      if (!err && data.length) return callback(err, data);
-      if (!err && data.length === 0) return this.searchPartial(q, callback);
+      if (data.length) return callback(err, data);
+      if (data.length === 0) return this.searchPartial(q, callback);
     });
   },
 };
