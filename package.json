@@ -8,11 +8,12 @@
     "npm": "7.7.6"
   },
   "scripts": {
-    "start": "pm2-runtime start index.js",
+    "start": "node index.js",
     "test": "npm run lint && npm run custom-tests && echo 'Done.'",
     "lint": "./node_modules/eslint/bin/eslint.js . --fix --max-warnings=0 --report-unused-disable-directives && echo '✔  Your .js files look good.'",
     "custom-tests": "echo \"(No other custom tests yet.)\" && echo",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "postinstall": "patch-package"
   },
   "repository": {
     "type": "git",
@@ -54,7 +55,7 @@
     "nodemailer": "^6.5.0",
     "passport": "^0.4.1",
     "passport-jwt": "^4.0.0",
-    "pm2": "^5.2.0",
+    "patch-package": "^6.4.7",
     "prerender-node": "^3.4.0",
     "randomstring": "^1.2.1",
     "stripe": "^8.154.0",
